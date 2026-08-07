@@ -1,14 +1,18 @@
 import asyncio
 import discord
 import random
+import logging
 from discord.ext import commands, tasks
 from src.helpers.env_helper import BOT_TOKEN
 from keep_alive import keep_alive
+
+logger = logging.getLogger(__name__)
 
 class MyBot(commands.Bot):
     async def setup_bot(self):
         extensions = [
             "src.voice_join.voice_call_manager",
+            "src.voice_join.detector",
         ]
 
         for ext in extensions:
@@ -53,7 +57,7 @@ async def on_ready():
     if not rotate_presence.is_running():
         rotate_presence.start()
 
-    print(f"Logged in as {bot.user}")
+    logger.info(f"Logged in as {bot.user}")
 
 
 async def main():

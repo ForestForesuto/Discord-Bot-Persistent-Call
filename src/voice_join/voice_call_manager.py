@@ -1,28 +1,42 @@
+import time
 import discord
+import logging
 from discord.ext import commands
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from bot import MyBot
 
+logger = logging.getLogger(__name__)
+
 class SilenceAudioSource(discord.AudioSource):
     def __init__(self) -> None:
         self._counter = 0
+        self._last_print_time = 0
 
     def read(self) -> bytes:
-        self._counter += 1
-        if self._counter % 500 == 0:
-            print(f"SilenceAudioSource: Still playing (call #{self._counter})")
-        # Return 20ms of silence PCM data, which is 3840 zero bytes
-        # Never return b'' so it loops forever
-        return bytes(3840)
+        try:
+            self._counter += 1
+
+            now = time.time()
+            if self._counter % 10000 == 0 or (now - self._last_print_time) >= 30:
+                logger.info(f"SilenceAudioSource: Still playing (call #{self._counter})")
+                self._last_print_time = now
+            # Return 20ms of silence PCM data, which is 3840 zero bytes
+            # Never return b'' so it loops forever
+            return bytes(3840)
+        except Exception as e:
+            # Log the error but keep the stream alive
+            logger.error(f"SilenceAudioSource ERROR: {e}, Last print time: {self._last_print_time}")
+            return bytes(3840)
+
 
     def is_opus(self) -> bool:
         # Return False to indicate we provide raw PCM data
         return False
 
     def cleanup(self) -> None:
-        # No resources to clean up
+        logger.info(f"SilenceAudioSource CLEANUP after {self._counter} calls")
         pass
 
 
@@ -34,7 +48,7 @@ class JoinVoiceCall(commands.Cog):
     @commands.guild_only()
     async def join(self, ctx: commands.Context) -> None:
         # Check if the user is in a voice channel
-        print("Join Command Recieved")
+        logger.debug("Join Command Recieved")
         author = ctx.author
         if author.bot:
             return
@@ -57,15 +71,18 @@ class JoinVoiceCall(commands.Cog):
 
         # Check if the vc is a Voice Client
         if isinstance(vc, discord.VoiceClient):
-            # If the bot is already in the same channel, notify the user, otherwise move to the new channel
             if vc.channel is None:
                 await ctx.send("I'm in a weird state, please try again.")
                 return
 
+            # If the bot is already in the same channel, notify the user, otherwise move to the new channel
             if vc.channel == channel:
                 await ctx.send(f"I'm already in `{channel.name}`.")
                 return
             else:
+                if vc.is_playing():
+                    vc.stop()
+
                 await vc.move_to(channel)
                 await ctx.send(f"Moved to `{channel.name}`.")
                 vc.play(SilenceAudioSource())
@@ -75,19 +92,21 @@ class JoinVoiceCall(commands.Cog):
             try:
                 vc = await channel.connect()
             except Exception as e:
-                print(f"Error: {e}")
+                logger.error(f"Error: {e}")
                 await ctx.send(f"Something went wrong: {e}")
                 return
 
             await ctx.send(f"Successfully joined the `{channel.name}` channel.")
             
-            if isinstance(vc, discord.VoiceClient):
-                vc.play(SilenceAudioSource())
+            if vc.is_playing():
+                vc.stop()
+
+            vc.play(SilenceAudioSource())
 
     @commands.command(name='leave')
     @commands.guild_only()
     async def leave(self, ctx: commands.Context) -> None:
-        print("Leave Command Recieved")
+        logger.debug("Leave Command Recieved")
         author = ctx.author
 
         if author.bot:
