@@ -5,6 +5,9 @@ import logging
 from discord.ext import commands, tasks
 from src.helpers.env_helper import BOT_TOKEN
 from keep_alive import keep_alive
+from src.helpers.central_logger import set_bot, start_size_checker
+
+logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +16,7 @@ class MyBot(commands.Bot):
         extensions = [
             "src.voice_join.voice_call_manager",
             "src.voice_join.detector",
+            "src.voice_join.log_sender"
         ]
 
         for ext in extensions:
@@ -57,6 +61,8 @@ async def on_ready():
     if not rotate_presence.is_running():
         rotate_presence.start()
 
+    set_bot(bot)
+    start_size_checker()
     logger.info(f"Logged in as {bot.user}")
 
 
