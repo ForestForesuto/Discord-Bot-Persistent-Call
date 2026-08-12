@@ -9,6 +9,8 @@ from src.helpers.central_logger import set_bot, start_size_checker
 
 logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
+
 class MyBot(commands.Bot):
     async def setup_bot(self):
         extensions = [
